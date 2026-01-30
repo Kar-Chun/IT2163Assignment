@@ -1,0 +1,150 @@
+﻿@page
+@model ASAssignment.Pages.RegisterModel
+@{
+}
+
+<div class="container mt-5">
+
+	<div class="row justify-content-center align-items-center">
+
+		<div class="col-sm-12 col-md-12 col-lg-4">
+			<h1 class="mb-3">Register </h1>
+
+            <form method="post" enctype="multipart/form-data" asp-antiforgery="true">
+                <div asp-validation-summary="All" class="text-danger"></div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.FirstName">First Name</label>
+                    <input asp-for="RModel.FirstName" class="form-control" />
+                    <span asp-validation-for="RModel.FirstName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.LastName">Last Name</label>
+                    <input asp-for="RModel.LastName" class="form-control" />
+                    <span asp-validation-for="RModel.LastName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.CreditCardNo">Credit Card No</label>
+                    <input asp-for="RModel.CreditCardNo" type="password" class="form-control" />
+                    <span asp-validation-for="RModel.CreditCardNo" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.MobileNo">Mobile No</label>
+                    <input asp-for="RModel.MobileNo" class="form-control" />
+                    <span asp-validation-for="RModel.MobileNo" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.BillingAddress">Billing Address</label>
+                    <input asp-for="RModel.BillingAddress" class="form-control" />
+                    <span asp-validation-for="RModel.BillingAddress" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.ShippingAddress">Shipping Address</label>
+                    <input asp-for="RModel.ShippingAddress" class="form-control" />
+                    <span asp-validation-for="RModel.ShippingAddress" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.Email">Email</label>
+                    <input asp-for="RModel.Email" type="email" class="form-control"/>
+                    <span asp-validation-for="RModel.Email" class="text-danger"></span>
+                </div>
+
+
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.Password">Password</label>
+                    <input asp-for="RModel.Password" type="password" class="form-control" onkeyup="validatePassword()" />
+                    <span asp-validation-for="RModel.Password" class="text-danger"></span>
+                </div>
+
+                <div id="pwdFeedback" class="form-text"></div>
+
+                <ul class="small mt-2 mb-0" id="pwdRules">
+                    <li id="rLen">At least 12 characters</li>
+                    <li id="rLower">At least 1 lowercase letter</li>
+                    <li id="rUpper">At least 1 uppercase letter</li>
+                    <li id="rDigit">At least 1 number</li>
+                    <li id="rSpecial">At least 1 special character</li>
+                </ul>
+
+
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.ConfirmPassword">Confirm Password</label>
+                    <input asp-for="RModel.ConfirmPassword" class="form-control" />
+                    <span asp-validation-for="RModel.ConfirmPassword" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="RModel.Photo">Photo (.JPG only)</label>
+                    <input asp-for="RModel.Photo" type="file" accept=".jpg,.jpeg,image/jpeg" class="form-control" />
+                    <span asp-validation-for="RModel.Photo" class="text-danger"></span>
+                </div>
+
+                <button id="btnRegister" type="submit" class="btn btn-primary w-100">Register</button>
+            </form>
+		</div>
+	</div>
+</div>
+
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function setRule(id, passed) {
+          const el = document.getElementById(id);
+          el.style.fontWeight = passed ? "600" : "400";
+          el.style.color = passed ? "green" : "red";
+        }
+
+        function validatePassword() {
+          const pwdInput = document.getElementById("RModel_Password")
+                           || document.querySelector('input[name="RModel.Password"]');
+          const pwd = pwdInput ? pwdInput.value : "";
+
+          // Rules (min 12, lower, upper, digit, special)
+          const hasLen = pwd.length >= 12;
+          const hasLower = /[a-z]/.test(pwd);
+          const hasUpper = /[A-Z]/.test(pwd);
+          const hasDigit = /\d/.test(pwd);
+          // Practical hints special-char via "negation" idea; in JS we use a negated class:
+          const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
+
+          setRule("rLen", hasLen);
+          setRule("rLower", hasLower);
+          setRule("rUpper", hasUpper);
+          setRule("rDigit", hasDigit);
+          setRule("rSpecial", hasSpecial);
+
+          const passed = hasLen && hasLower && hasUpper && hasDigit && hasSpecial;
+
+          const feedback = document.getElementById("pwdFeedback");
+          const btn = document.getElementById("btnRegister");
+
+          if (!pwd) {
+            feedback.textContent = "";
+            btn.disabled = false; // don’t block empty; server-side will still enforce Required
+            return;
+          }
+
+          if (passed) {
+            feedback.textContent = "Strong password ✓";
+            feedback.style.color = "green";
+            btn.disabled = false;
+          } else {
+            feedback.textContent = "Password not strong enough yet.";
+            feedback.style.color = "red";
+            btn.disabled = true; // client-side enforcement
+          }
+        }
+
+        // Run once on page load (useful when browser autofills)
+        document.addEventListener("DOMContentLoaded", validatePassword);
+    </script>
+}
