@@ -11,18 +11,18 @@
 			<h1 class="mb-3">Login </h1>
 			<div asp-validation-summary="All" class="text-danger"></div>
 
-			<form method="post" asp-antiforgery="true">
+			<form method="post" asp-antiforgery="true" id="loginForm">
 
 				<div class="mb-3">
 					<label class="form-label" asp-for="LModel.Email">Email Address</label>
 					<input type="Text" asp-for="LModel.Email" class="form-control" />
-					<span asp-validaton-for="LModel.Email" class="text-danger"></span>
+					<span asp-validation-for="LModel.Email" class="text-danger"></span>
 				</div>
 
 				<div class="mb-3">
 					<label class="form-label" asp-for="LModel.Password">Password</label>
-					<input type="Text" asp-for="LModel.Password" class="form-control" />
-					<span asp-validaton-for="LModel.Password" class="text-danger"></span>
+					<input type="password" asp-for="LModel.Password" class="form-control" />
+					<span asp-validation-for="LModel.Password" class="text-danger"></span>
 				</div>
 
 				<div class="mb-3 form-check">
@@ -31,9 +31,9 @@
 				</div>
 
 				<div class="mb-3">
-					<button type="submit" class="btn btn-primary">Login</button>
+					<button id="btnLogin" type="submit" class="btn btn-primary">Login</button>
 				</div>
-				<input type="hidden" id="g-recaptcha-response" name="g-recaptcha-response" />
+				<input type="hidden" name="RecaptchaToken" id="RecaptchaToken" />
 			</form>
 
 		</div>
@@ -48,25 +48,34 @@
 	<script src="https://www.google.com/recaptcha/api.js?render=@Model.RecaptchaSiteKey"></script>
 
 	<script>
-		(function () {
-			const form = document.querySelector('form');
-			if (!form) return;
+		const form = document.getElementById("loginForm");
+		const btn = document.getElementById("btnLogin");
+		const tokenField = document.getElementById("RecaptchaToken");
 
-			let submitting = false;
+		let submitting = false;
 
-			form.addEventListener('submit', function (e) {
-				if (submitting) return;     // prevent loop
-				e.preventDefault();
+		form.addEventListener("submit", async function (e) {
+		  if (submitting) return;
+		  e.preventDefault();
 
-				grecaptcha.ready(function () {
-					grecaptcha.execute('@Model.RecaptchaSiteKey', { action: 'Login' })
-						.then(function (token) {
-							document.getElementById('g-recaptcha-response').value = token;
-							submitting = true;
-							form.submit();
-						});
-				});
-			});
-		})();
+		  submitting = true;
+		  if (btn) btn.disabled = true;
+
+		  try {
+			// wait until grecaptcha is ready
+			await new Promise(resolve => grecaptcha.ready(resolve));
+
+			const token = await grecaptcha.execute("@Model.RecaptchaSiteKey", { action: "login" });
+			tokenField.value = token;
+
+			// native submit (doesn't re-trigger your handler)
+			HTMLFormElement.prototype.submit.call(form);
+		  } catch (err) {
+			submitting = false;
+			if (btn) btn.disabled = false;
+			console.error(err);
+			alert("Captcha failed. Please refresh and try again.");
+		  }
+		});
 	</script>
 }

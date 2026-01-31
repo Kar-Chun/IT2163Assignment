@@ -3,6 +3,7 @@ using ASAssignment.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -11,6 +12,7 @@ namespace ASAssignment.Pages
     public class LoginModel : PageModel
     {
         [BindProperty]
+
         public Login LModel { get; set; }
 
         private readonly SignInManager<ApplicationUser> _signInManager;
@@ -21,18 +23,24 @@ namespace ASAssignment.Pages
 
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<LoginModel> _logger;
+        private readonly IWebHostEnvironment _env;
 
         public LoginModel(SignInManager<ApplicationUser> signInManager,
             UserManager<ApplicationUser> userManager,
                   AuthDbContext db,
                   IHttpClientFactory httpClientFactory,
-                  IConfiguration config)
+                  IConfiguration config,
+                  ILogger<LoginModel> logger,
+                  IWebHostEnvironment env)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _db = db;
             _httpClientFactory = httpClientFactory;
             _config = config;
+            _logger = logger;
+            _env = env;
         }
         public void OnGet()
         {
@@ -42,17 +50,27 @@ namespace ASAssignment.Pages
         public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
             returnUrl ??= Url.Content("~/");
+            _logger.LogInformation("LOGIN OnPost hit. Trace={Trace}", HttpContext.TraceIdentifier);
+
 
             RecaptchaSiteKey = _config["RecaptchaV3:SiteKey"] ?? "";
 
             //  Validate captcha 
-            var token = Request.Form["g-recaptcha-response"].ToString();
-            var (ok, reason) = await ValidateRecaptchaV3Async(token, "Login");
-            if (!ok)
+            var token = Request.Form["RecaptchaToken"].ToString()?.Trim();
+            if (string.IsNullOrWhiteSpace(token))
             {
-                ModelState.AddModelError(string.Empty, reason);
+                ModelState.AddModelError("", "Captcha token missing.");
                 return Page();
             }
+
+            // Call ValidateRecaptchaAsync(token) exactly once.
+            var (ok, reason) = await ValidateRecaptchaV3Async(token, "login");
+            if (!ok)
+            {
+                ModelState.AddModelError("", reason);
+                return Page();
+            }
+
             if (ModelState.IsValid)
             {
                 var identityResult = await _signInManager.PasswordSignInAsync(LModel.Email,
@@ -122,12 +140,20 @@ namespace ASAssignment.Pages
             [JsonPropertyName("success")] public bool Success { get; set; }
             [JsonPropertyName("score")] public double Score { get; set; }
             [JsonPropertyName("action")] public string? Action { get; set; }
-
+            [JsonPropertyName("hostname")] public string? Hostname { get; set; }
+            [JsonPropertyName("challenge_ts")] public string? ChallengeTs { get; set; }
             [JsonPropertyName("error-codes")] public string[]? ErrorCodes { get; set; }
         }
 
         private async Task<(bool ok, string reason)> ValidateRecaptchaV3Async(string token, string expectedAction)
         {
+            // TEMPORARY BYPASS FOR DEVELOPMENT
+            if (_env.IsDevelopment())
+            {
+                _logger.LogWarning("?? RECAPTCHA BYPASSED - Development Mode");
+                return (true, "OK (dev bypass)");
+            }
+
             var secret = _config["RecaptchaV3:SecretKey"];
             if (string.IsNullOrWhiteSpace(secret)) return (false, "Captcha secret key missing.");
 
@@ -142,15 +168,33 @@ namespace ASAssignment.Pages
             };
             try
             {
+                var token1 = Request.Form["RecaptchaToken"].ToString(); // or whatever you use
+                _logger.LogWarning("Recaptcha token length: {Len}", token1?.Length ?? 0);
+
                 var resp = await client.PostAsync("https://www.google.com/recaptcha/api/siteverify",
                     new FormUrlEncodedContent(form));
 
                 if (!resp.IsSuccessStatusCode) return (false, "Captcha verification failed (HTTP).");
 
                 var json = await resp.Content.ReadAsStringAsync();
+
+                _logger.LogWarning("reCAPTCHA raw: {Json}", json);
+
                 var data = JsonSerializer.Deserialize<RecaptchaVerifyResponse>(json);
 
-                if (data is null || !data.Success) return (false, "Captcha verification failed.");
+                if (data is null)
+                    return (false, "Captcha verification failed (no response).");
+
+                if (!data.Success)
+                {
+                    var codes = data.ErrorCodes == null ? "" : string.Join(", ", data.ErrorCodes);
+                    _logger.LogWarning("reCAPTCHA fail. success={Success} host={Host} action={Action} codes={Codes}",
+    data?.Success, data?.Hostname, data?.Action,
+    data?.ErrorCodes == null ? "" : string.Join(",", data.ErrorCodes));
+
+                    return (false, $"Captcha verification failed ({codes})");
+
+                }
 
 
                 var minScoreStr = _config["RecaptchaV3:MinScore"];
